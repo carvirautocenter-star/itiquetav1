@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#0f172a">
+    <title>E-Tiqueta Studio Pro</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: { orange: '#FF6B00' } } } } }
+    </script>
+
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        @media print {
+            body * { visibility: hidden !important; }
+            #print-wrapper, #print-wrapper * { visibility: visible !important; }
+            #print-wrapper {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                background: white !important;
+                display: block !important;
+            }
+            .no-print { display: none !important; }
+            @page { size: A4 portrait; margin: 0; }
+
+            .a4-sheet {
+                transform: none !important;
+                box-shadow: none !important;
+                page-break-after: always;
+                page-break-inside: avoid;
+                display: block !important;
+                margin: 0 auto !important;
+            }
+            
+            body.print-mode-front #a4PageVerso { display: none !important; }
+            body.print-mode-verso #a4PageFront { display: none !important; }
+            body.print-mode-both #a4PageFront, 
+            body.print-mode-both #a4PageVerso { display: block !important; }
+        }
+
+        .a4-sheet {
+            width: 210mm;
+            height: 297mm;
+            box-sizing: border-box;
+            background: #ffffff;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+            margin: 0 auto 20px auto;
+            position: relative;
+            overflow: hidden;
+            display: block;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .labels-grid {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            box-sizing: border-box;
+        }
+
+        .label-cell {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .label-card-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            box-sizing: border-box;
+            text-align: center;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .icon-lib-item {
+            position: relative; aspect-ratio: 1;
+            border-radius: 10px; overflow: hidden;
+            cursor: pointer; border: 2px solid transparent;
+            background: #0f172a; transition: all 0.2s;
+        }
+        .icon-lib-item:hover { border-color: #f97316; transform: scale(1.05); }
+        .icon-lib-item img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+        .icon-lib-item .del-btn {
+            position: absolute; top: 2px; right: 2px;
+            background: rgba(220,38,38,0.9); border-radius: 50%;
+            width: 20px; height: 20px; display: none;
+            align-items: center; justify-content: center;
+            color: white; font-size: 12px; font-weight: bold;
+        }
+        .icon-lib-item:hover .del-btn { display: flex; }
+        @media (max-width: 1023px) {
+            .icon-lib-item .del-btn { display: flex; }
+        }
+
+        .mobile-toggle-btn { display: none; }
+        @media (max-width: 1023px) {
+            .mobile-toggle-btn { display: flex; }
+            .sidebar-mobile-hidden { display: none; }
+        }
+
+        .template-card {
+            cursor: pointer; border: 2px solid #1e293b;
+            border-radius: 10px; padding: 8px;
+            text-align: center; transition: all 0.2s;
+        }
+        .template-card:hover { border-color: #64748b; }
+        .template-card.active { border-color: #f97316; background: rgba(249,115,22,0.1); }
+
+        .mirror-qr { transform: scaleX(-1); }
+        .mirror-label { transform: scaleX(-1); }
+
+        @keyframes pulse-qr {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.6); }
+            50% { box-shadow: 0 0 0 8px rgba(249,115,22,0); }
+        }
+        .qr-pulse { animation: pulse-qr 1.8s infinite; }
+
+        .qr-status {
+            font-size: 10px; padding: 6px 10px;
+            border-radius: 6px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .qr-status.ok { background: rgba(22,163,74,0.15); color: #4ade80; }
+        .qr-status.warn { background: rgba(249,115,22,0.15); color: #fb923c; }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .qr-preview-box {
+            background: repeating-conic-gradient(#e2e8f0 0% 25%, #ffffff 0% 50%) 50% / 16px 16px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 180px;
+            border: 2px dashed #334155;
+            padding: 8px;
+        }
+        .qr-preview-box img { max-width: 100%; max-height: 180px; }
+
+        .print-mode-tab {
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            padding: 8px 12px; border-radius: 8px; cursor: pointer;
+            border: 2px solid #1e293b; background: #0f172a;
+            font-size: 11px; font-weight: 700; color: #94a3b8;
+            transition: all 0.15s;
+        }
+        .print-mode-tab:hover { border-color: #475569; color: #cbd5e1; }
+        .print-mode-tab.active { border-color: #f97316; background: rgba(249,115,22,0.12); color: #fb923c; }
+
+        .slider-pill {
+            font-size: 10px; font-family: ui-monospace, monospace;
+            color: #fb923c; min-width: 48px; text-align: right;
+        }
+
+        .logo-upload-cta {
+            border: 2px dashed #f97316;
+            background: rgba(249,115,22,0.08);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .logo-upload-cta:hover { background: rgba(249,115,22,0.15); border-color: #fb923c; }
+        .logo-upload-cta:active { transform: scale(0.98); }
+
+        .verso-empty-hint {
+            background: rgba(251, 191, 36, 0.15);
+            border: 2px dashed #fbbf24;
+            color: #fcd34d;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        #print-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 1023px) {
+            .a4-sheet {
+                transform-origin: top center !important;
+            }
+            
+            input[type="range"] {
+                height: 28px;
+            }
+            
+            input[type="range"]::-webkit-slider-thumb {
+                width: 22px;
+                height: 22px;
+            }
+            
+            input[type="color"] {
+                min-height: 40px;
+            }
+            
+            button, .template-card, .print-mode-tab {
+                min-height: 44px;
+            }
+            
+            .sidebar-tabs button {
+                min-height: 52px;
+            }
+        }
+
+        /* Individual Label View */
+        .individual-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+        }
+        
+        .individual-label-card {
+            width: 75mm;
+            height: 105mm;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .individual-label-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .individual-label-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* A4 Preview Scale on Mobile */
+        .a4-preview-container {
+            width: 100%;
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+            padding: 8px;
+        }
+
+        @media (max-width: 1023px) {
+            .a4-preview-container {
+                justify-content: flex-start;
+                padding-left: 8px;
+            }
+        }
+
+        /* Info Cards */
+        .info-card {
+            background: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        
+        .info-card .value {
+            font-size: 18px;
+            font-weight: 900;
+            color: #f97316;
+            font-family: ui-monospace, monospace;
+        }
+
+        /* Tab Content Animation */
+        .tab-content {
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Better touch targets for mobile */
+        @media (max-width: 1023px) {
+            select, input[type="text"], input[type="number"], textarea {
+                min-height: 44px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .tab-btn {
+                min-width: 64px;
+                padding: 10px 4px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <header class="bg-slate-900 border-b border-slate-800 px-2 lg:px-6 py-2 lg:py-2.5 flex flex-wrap items-center justify-between gap-2 lg:gap-3 sticky top-0 z-50 no-print">
+        <div class="flex items-center gap-2 lg:gap-3">
+            <div class="bg-gradient-to-tr from-orange-600 to-amber-500 p-1.5 lg:p-2 rounded-lg lg:rounded-xl shadow-lg shadow-orange-600/30">
+                <i data-lucide="tag" class="w-4 h-4 lg:w-5 lg:h-5 text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-black text-base lg:text-lg text-white tracking-tight flex items-center gap-1.5">
+                    E-Tiqueta <span class="text-orange-500">Studio</span>
+                    <span class="text-[8px] lg:text-[9px] bg-orange-600/20 text-orange-400 px-1.5 py-0.5 rounded font-bold">PRO</span>
+                </h1>
+                <p class="text-[9px] lg:text-[10px] text-slate-400 hidden sm:block">Etiquetas Automotivas Vetorizadas</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 lg:gap-2 flex-wrap">
+            <button onclick="toggleMobileSidebar()" class="mobile-toggle-btn px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 items-center gap-1.5">
+                <i data-lucide="settings-2" class="w-4 h-4"></i>
+            </button>
+            <button onclick="exportSVG()" class="px-2.5 lg:px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg border border-emerald-600 transition flex items-center gap-1.5">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">SVG</span>
+            </button>
+            <button onclick="exportSheetPNG()" class="px-2.5 lg:px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                <i data-lucide="file-image" class="w-4 h-4 text-orange-400"></i>
+                <span class="hidden sm:inline">PNG</span>
+            </button>
+            <button onclick="exportPDF()" class="px-2.5 lg:px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i>
+                <span class="hidden sm:inline">PDF</span>
+            </button>
+            <button onclick="printAll()" class="px-3 lg:px-3.5 py-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white text-xs font-bold rounded-lg shadow-lg shadow-orange-600/30 transition flex items-center gap-1.5">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Imprimir</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+        <aside id="mainSidebar" class="w-full lg:w-96 bg-slate-900 border-r border-slate-800 flex flex-col h-auto lg:h-[calc(100vh-53px)] overflow-y-auto sidebar-mobile-hidden lg:!flex">
+
+            <div class="flex border-b border-slate-800 bg-slate-900/95 sticky top-0 z-20 backdrop-blur overflow-x-auto">
+                <button onclick="switchTab('design')" id="tab-btn-design" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-orange-500 border-b-2 border-orange-500 flex flex-col items-center gap-1 transition">
+                    <i data-lucide="palette" class="w-5 h-5"></i> Visual
+                </button>
+                <button onclick="switchTab('textos')" id="tab-btn-textos" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex flex-col items-center gap-1 transition">
+                    <i data-lucide="type" class="w-5 h-5"></i> Textos
+                </button>
+                <button onclick="switchTab('icons')" id="tab-btn-icons" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex flex-col items-center gap-1 transition">
+                    <i data-lucide="image-plus" class="w-5 h-5"></i> Logos
+                </button>
+                <button onclick="switchTab('qrcode')" id="tab-btn-qrcode" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex flex-col items-center gap-1 transition">
+                    <i data-lucide="qr-code" class="w-5 h-5"></i> QR
+                </button>
+                <button onclick="switchTab('verso')" id="tab-btn-verso" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex flex-col items-center gap-1 transition">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i> Verso
+                </button>
+                <button onclick="switchTab('layout')" id="tab-btn-layout" class="tab-btn flex-1 min-w-[60px] py-3 px-1 text-[10px] font-bold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex flex-col items-center gap-1 transition">
+                    <i data-lucide="grid" class="w-5 h-5"></i> A4
+                </button>
+            </div>
+
+            <div class="p-3 lg:p-4 space-y-4 lg:space-y-5 flex-1 pb-24 lg:pb-4">
+
+                <!-- TAB: DESIGN -->
+                <div id="tab-design" class="tab-content space-y-4">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">Modelos Rápidos</h3>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div onclick="applyTemplate('classic', event)" class="template-card active"><div class="h-12 rounded mb-1 bg-gradient-to-br from-orange-500 to-orange-600"></div><span class="text-[9px] font-bold text-slate-300">Clássico</span></div>
+                        <div onclick="applyTemplate('dark', event)" class="template-card"><div class="h-12 rounded mb-1 bg-gradient-to-br from-slate-800 to-slate-950"></div><span class="text-[9px] font-bold text-slate-300">Escuro</span></div>
+                        <div onclick="applyTemplate('blue', event)" class="template-card"><div class="h-12 rounded mb-1 bg-gradient-to-br from-blue-600 to-blue-800"></div><span class="text-[9px] font-bold text-slate-300">Azul</span></div>
+                        <div onclick="applyTemplate('green', event)" class="template-card"><div class="h-12 rounded mb-1 bg-gradient-to-br from-green-600 to-green-800"></div><span class="text-[9px] font-bold text-slate-300">Verde</span></div>
+                        <div onclick="applyTemplate('red', event)" class="template-card"><div class="h-12 rounded mb-1 bg-gradient-to-br from-red-600 to-red-800"></div><span class="text-[9px] font-bold text-slate-300">Vermelho</span></div>
+                        <div onclick="applyTemplate('purple', event)" class="template-card"><div class="h-12 rounded mb-1 bg-gradient-to-br from-purple-600 to-purple-800"></div><span class="text-[9px] font-bold text-slate-300">Roxo</span></div>
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Cores</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Fundo</label>
+                            <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                                <input type="color" id="bgColor" value="#FF6B00" oninput="updateAll()" class="w-8 h-8 rounded cursor-pointer bg-transparent border-0">
+                                <span id="bgColorHex" class="text-[10px] text-slate-300 font-mono">#FF6B00</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Texto</label>
+                            <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                                <input type="color" id="textColor" value="#FFFFFF" oninput="updateAll()" class="w-8 h-8 rounded cursor-pointer bg-transparent border-0">
+                                <span id="textColorHex" class="text-[10px] text-slate-300 font-mono">#FFFFFF</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Cor Secundária</label>
+                            <input type="color" id="secondaryColor" value="#1E293B" oninput="updateAll()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Estilo do Card</label>
+                            <select id="cardStyle" onchange="updateAll()" class="w-full bg-slate-950 text-slate-100 text-xs rounded-lg px-2 py-2.5 border border-slate-800">
+                                <option value="flat">Plano</option>
+                                <option value="gradient">Gradiente</option>
+                                <option value="striped">Listrado</option>
+                                <option value="bordered">Borda Dupla</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Impressão Especial</h3>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="mirrorMode" onchange="updateAll()" class="accent-orange-500 w-5 h-5">
+                        <div class="flex-1">
+                            <label for="mirrorMode" class="text-[11px] text-slate-200 font-bold block">🔄 Modo Espelho (Frente)</label>
+                            <p class="text-[9px] text-slate-500 leading-tight">Para adesivo por dentro do vidro</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="mirrorVerso" onchange="updateAll()" class="accent-orange-500 w-5 h-5">
+                        <div class="flex-1">
+                            <label for="mirrorVerso" class="text-[11px] text-slate-200 font-bold block">🔄 Modo Espelho (Verso)</label>
+                            <p class="text-[9px] text-slate-500 leading-tight">Para leitura pelo lado externo/interno</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: TEXTOS -->
+                <div id="tab-textos" class="tab-content space-y-4 hidden">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">Conteúdo</h3>
+
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Título Superior</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <input type="text" id="headerText" placeholder="Ex: E-Tiqueta" oninput="saveAndUpdate()" class="col-span-2 bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500">
+                            <input type="color" id="headerPrefixColor" value="#2563EB" oninput="updateAll()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Subtítulo</label>
+                        <input type="text" id="subTitleText" placeholder="Ex: Centro Automotivo" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Nome da Empresa</label>
+                        <input type="text" id="brandText" placeholder="Ex: autobox" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Rodapé</label>
+                        <input type="text" id="footerText" placeholder="Ex: Verifique sua troca de óleo" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Próxima Troca</label>
+                        <input type="text" id="nextChangeText" placeholder="Ex: 10.000 km" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500">
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Tamanhos</h3>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Título</label>
+                            <span id="headerSizeVal" class="slider-pill">14px</span>
+                        </div>
+                        <input type="range" id="headerSize" min="8" max="28" value="14" oninput="updateSliderLabel('headerSizeVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Subtítulo</label>
+                            <span id="subSizeVal" class="slider-pill">8px</span>
+                        </div>
+                        <input type="range" id="subSize" min="5" max="20" value="8" oninput="updateSliderLabel('subSizeVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Empresa</label>
+                            <span id="brandSizeVal" class="slider-pill">10px</span>
+                        </div>
+                        <input type="range" id="brandSize" min="6" max="22" value="10" oninput="updateSliderLabel('brandSizeVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Rodapé</label>
+                            <span id="footerSizeVal" class="slider-pill">7px</span>
+                        </div>
+                        <input type="range" id="footerSize" min="5" max="18" value="7" oninput="updateSliderLabel('footerSizeVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Próxima Troca</label>
+                            <span id="nextSizeVal" class="slider-pill">7.5px</span>
+                        </div>
+                        <input type="range" id="nextSize" min="5" max="18" value="7.5" step="0.5" oninput="updateSliderLabel('nextSizeVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Posição</h3>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Padding</label>
+                            <span id="contentPaddingVal" class="slider-pill">8%</span>
+                        </div>
+                        <input type="range" id="contentPadding" min="2" max="20" value="8" oninput="updateSliderLabel('contentPaddingVal', this.value + '%'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Gap</label>
+                            <span id="contentGapVal" class="slider-pill">4px</span>
+                        </div>
+                        <input type="range" id="contentGap" min="0" max="20" value="4" oninput="updateSliderLabel('contentGapVal', this.value + 'px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                </div>
+
+                <!-- TAB: LOGOS -->
+                <div id="tab-icons" class="tab-content space-y-4 hidden">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">🏷️ Logo da Empresa</h3>
+                    <p class="text-[10px] text-slate-400 leading-relaxed">Aparece abaixo do QR Code. Substitui o texto "Nome da Empresa".</p>
+
+                    <div class="logo-upload-cta" onclick="document.getElementById('libraryUploadInput').click()">
+                        <i data-lucide="image-plus" class="w-10 h-10 text-orange-400 mx-auto mb-2"></i>
+                        <p class="text-sm font-bold text-orange-400">📤 Toque para enviar imagem</p>
+                        <p class="text-[10px] text-slate-500 mt-1">PNG, JPG, SVG · Fica salvo no dispositivo</p>
+                    </div>
+                    <input type="file" id="libraryUploadInput" accept="image/*" multiple onchange="handleLibraryUpload(event)" class="hidden">
+
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-300 block mb-2">Logo Atual</label>
+                        <div id="currentLogoPreview" class="flex items-center justify-center bg-slate-950 border-2 border-dashed border-slate-700 rounded-lg p-4 min-h-[100px]">
+                            <p class="text-[10px] text-slate-500">Usando texto (sem imagem)</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <button onclick="removeBrandLogo()" class="py-3 text-[11px] text-red-400 hover:bg-red-950/30 rounded-lg border border-red-900/50 font-bold">Remover Logo</button>
+                            <button onclick="useTextLogo()" class="py-3 text-[11px] text-slate-300 hover:bg-slate-800 rounded-lg border border-slate-700 font-bold">Usar Texto</button>
+                        </div>
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Biblioteca (<span id="libraryCount">0</span>)</h3>
+                    <div class="flex items-center justify-between">
+                        <p class="text-[10px] text-slate-400">Toque para usar como logo</p>
+                        <button onclick="clearLibrary()" class="px-3 py-2 bg-slate-800 hover:bg-red-900/50 text-slate-300 text-[10px] font-bold rounded-lg border border-slate-700">Limpar</button>
+                    </div>
+                    <div id="libraryGrid" class="grid grid-cols-4 gap-2">
+                        <p class="col-span-4 text-center text-[10px] text-slate-500 py-6 border border-dashed border-slate-800 rounded-lg">Nenhuma imagem ainda.</p>
+                    </div>
+
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider pt-3 border-t border-slate-800">Gerador de Logo</h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" id="genLogoText" value="AB" maxlength="3" oninput="renderLogoGenerator()" placeholder="Iniciais" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800">
+                            <select id="genLogoShape" onchange="renderLogoGenerator()" class="w-full bg-slate-950 text-slate-100 text-xs rounded-lg px-2 py-2.5 border border-slate-800">
+                                <option value="circle">Círculo</option>
+                                <option value="square">Quadrado</option>
+                                <option value="rounded">Arredondado</option>
+                                <option value="hexagon">Hexágono</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="color" id="genLogoBg" value="#FF6B00" oninput="renderLogoGenerator()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                            <input type="color" id="genLogoFg" value="#FFFFFF" oninput="renderLogoGenerator()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                        <div class="p-3 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center">
+                            <canvas id="logoGenCanvas" width="200" height="200" class="max-w-[140px]"></canvas>
+                        </div>
+                        <button onclick="saveGeneratedLogo()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-500 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-1.5">
+                            <i data-lucide="save" class="w-4 h-4"></i> Salvar e Usar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB: QR CODE -->
+                <div id="tab-qrcode" class="tab-content space-y-4 hidden">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">QR Code</h3>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Link ou Texto</label>
+                        <input type="text" id="qrText" placeholder="https://seusite.com.br" oninput="markQRStale()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-orange-500 font-mono">
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] font-bold text-slate-300">Preview</label>
+                            <span id="qrStatus" class="qr-status warn"><i data-lucide="alert-circle" class="w-3 h-3"></i> Não gerado</span>
+                        </div>
+                        <div id="qrPreviewContainer" class="qr-preview-box">
+                            <p class="text-[10px] text-slate-500 text-center">Toque em "Gerar QR Code"</p>
+                        </div>
+                    </div>
+                    <button id="generateQRBtn" onclick="generateQRCode()" class="w-full py-4 bg-gradient-to-r from-orange-600 to-amber-500 text-white text-base font-black rounded-lg shadow-lg shadow-orange-600/40 transition flex items-center justify-center gap-2 qr-pulse">
+                        <i data-lucide="qr-code" class="w-6 h-6"></i> GERAR QR CODE
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Cor Módulos</label>
+                            <input type="color" id="qrDarkColor" value="#000000" oninput="markQRStale()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Cor Fundo</label>
+                            <input type="color" id="qrLightColor" value="#FFFFFF" oninput="markQRStale()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Ícone Central</label>
+                        <select id="qrCenterIconSelect" onchange="handleQRIconSelectChange()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800">
+                            <option value="none">Nenhum</option>
+                            <option value="oil" selected>Galão de Óleo</option>
+                            <option value="car">Carro</option>
+                            <option value="wrench">Chave</option>
+                            <option value="drop">Gota de Óleo</option>
+                            <option value="library">Da Biblioteca de Logos</option>
+                        </select>
+                    </div>
+                    <div id="libraryIconPickerWrapper" class="hidden">
+                        <div id="libraryIconPicker" class="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1 bg-slate-950 border border-slate-800 rounded-lg"></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Tamanho do Ícone Central</label>
+                            <span id="iconSizeVal" class="slider-pill">22%</span>
+                        </div>
+                        <input type="range" id="iconSize" min="12" max="30" value="22" oninput="updateSliderLabel('iconSizeVal', this.value + '%'); markQRStale()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Tamanho do QR na Etiqueta</label>
+                            <span id="qrLabelSizeVal" class="slider-pill">82%</span>
+                        </div>
+                        <input type="range" id="qrLabelSize" min="40" max="95" value="82" oninput="updateSliderLabel('qrLabelSizeVal', this.value + '%'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="showQRFrame" onchange="markQRStale()" checked class="accent-orange-500 w-5 h-5">
+                        <label for="showQRFrame" class="text-[11px] text-slate-300">Moldura branca ao redor do ícone</label>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="mirrorQR" onchange="updateAll()" class="accent-orange-500 w-5 h-5">
+                        <label for="mirrorQR" class="text-[11px] text-slate-300">🔄 Espelhar QR Code</label>
+                    </div>
+                </div>
+
+                <!-- TAB: VERSO -->
+                <div id="tab-verso" class="tab-content space-y-4 hidden">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">Verso</h3>
+                    <div class="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-950/60 to-amber-950/40 rounded-xl border-2 border-orange-600/60">
+                        <input type="checkbox" id="enableVerso" onchange="updateVersoVisibility()" class="accent-orange-500 w-6 h-6 cursor-pointer" checked>
+                        <div class="flex-1">
+                            <label for="enableVerso" class="text-sm text-orange-200 font-black block cursor-pointer">✓ HABILITAR VERSO</label>
+                            <p class="text-[10px] text-orange-400/80 mt-0.5">Ativa a folha/página do verso</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Título do Verso</label>
+                        <input type="text" id="versoTitle" placeholder="Ex: REGISTRO DE TROCA DE ÓLEO" value="REGISTRO DE TROCA DE ÓLEO" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-medium text-slate-300 mb-1">Campos (um por linha)</label>
+                        <textarea id="versoFields" rows="10" placeholder="Cliente:&#10;Veículo:&#10;Placa:&#10;KM Atual:&#10;Data:&#10;Óleo:&#10;Filtro:&#10;Responsável:" oninput="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-xs rounded-lg px-3 py-2.5 border border-slate-800 font-mono">Cliente:
+Veículo:
+Placa:
+KM Atual:
+Data:
+Óleo:
+Filtro:
+Responsável:</textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Cor do Texto</label>
+                            <input type="color" id="versoTextColor" value="#1E293B" oninput="saveAndUpdate()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Cor da Borda</label>
+                            <input type="color" id="versoBorderColor" value="#CBD5E1" oninput="saveAndUpdate()" class="w-full h-11 bg-slate-950 rounded-lg p-1.5 border border-slate-800 cursor-pointer">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="versoSameStyle" onchange="saveAndUpdate()" checked class="accent-orange-500 w-5 h-5">
+                        <label for="versoSameStyle" class="text-[11px] text-slate-200 font-bold">📐 Mesmos cantos da frente</label>
+                    </div>
+                    <button onclick="setViewMode('both')" class="w-full py-3 bg-sky-700 hover:bg-sky-600 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2">
+                        <i data-lucide="eye" class="w-4 h-4"></i> Ver Frente e Verso Juntos
+                    </button>
+                </div>
+
+                <!-- TAB: LAYOUT -->
+                <div id="tab-layout" class="tab-content space-y-4 hidden">
+                    <h3 class="text-[10px] uppercase font-extrabold text-orange-400 tracking-wider">Grade da Folha A4</h3>
+                    
+                    <!-- Auto-sizing info -->
+                    <div class="info-card">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <p class="text-[9px] text-slate-400 uppercase font-bold mb-1">Total de Etiquetas</p>
+                                <p class="value" id="totalLabelsCount">25 un</p>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-slate-400 uppercase font-bold mb-1">Dimensão Unitária</p>
+                                <p class="value" id="labelDimensions">38 x 53 mm</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Colunas</label>
+                            <input type="number" id="gridCols" min="1" max="8" value="5" onchange="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 text-center font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-300 mb-1">Linhas</label>
+                            <input type="number" id="gridRows" min="1" max="10" value="5" onchange="saveAndUpdate()" class="w-full bg-slate-950 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-800 text-center font-bold">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Margem</label>
+                            <span id="marginVal" class="slider-pill">10 mm</span>
+                        </div>
+                        <input type="range" id="pageMargin" min="2" max="25" value="10" oninput="updateSliderLabel('marginVal', this.value + ' mm'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Espaçamento</label>
+                            <span id="gapVal" class="slider-pill">4 mm</span>
+                        </div>
+                        <input type="range" id="gridGap" min="0" max="15" value="4" oninput="updateSliderLabel('gapVal', this.value + ' mm'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-medium text-slate-300">Cantos Arredondados</label>
+                            <span id="radiusVal" class="slider-pill">12 px</span>
+                        </div>
+                        <input type="range" id="labelRadius" min="0" max="24" value="12" oninput="updateSliderLabel('radiusVal', this.value + ' px'); saveAndUpdate()" class="w-full accent-orange-500 h-8">
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                        <input type="checkbox" id="printBorders" onchange="saveAndUpdate()" class="accent-orange-500 w-5 h-5">
+                        <label for="printBorders" class="text-[11px] text-slate-300">Bordas de corte</label>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-slate-950 p-2 lg:p-6 flex flex-col items-center justify-start overflow-auto">
+
+            <!-- View Controls -->
+            <div class="w-full max-w-4xl bg-slate-900/80 border border-slate-800 rounded-xl lg:rounded-2xl p-2 lg:p-3 mb-3 lg:mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2 lg:gap-3 backdrop-blur shadow-lg no-print sticky top-[53px] lg:top-0 z-30">
+                
+                <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg lg:rounded-xl border border-slate-800 overflow-x-auto">
+                    <button onclick="setViewMode('single')" id="btn-view-single" class="flex-1 min-w-[70px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-white bg-orange-600 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="square" class="w-3.5 h-3.5"></i> Individual
+                    </button>
+                    <button onclick="setViewMode('sheet')" id="btn-view-sheet" class="flex-1 min-w-[60px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i> A4
+                    </button>
+                    <button onclick="setViewMode('verso')" id="btn-view-verso" class="flex-1 min-w-[60px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Verso
+                    </button>
+                    <button onclick="setViewMode('both')" id="btn-view-both" class="flex-1 min-w-[60px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Ambos
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1 flex-wrap justify-center lg:justify-end">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden lg:inline mr-1">Imprimir:</span>
+                    <div id="printModeFront" onclick="setPrintMode('front')" class="print-mode-tab active">
+                        <i data-lucide="arrow-up" class="w-3 h-3"></i> Frente
+                    </div>
+                    <div id="printModeVerso" onclick="setPrintMode('verso')" class="print-mode-tab">
+                        <i data-lucide="arrow-down" class="w-3 h-3"></i> Verso
+                    </div>
+                    <div id="printModeBoth" onclick="setPrintMode('both')" class="print-mode-tab">
+                        <i data-lucide="copy" class="w-3 h-3"></i> Ambas
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 justify-center lg:justify-end">
+                    <i data-lucide="zoom-in" class="w-4 h-4 text-slate-400"></i>
+                    <input type="range" id="zoomRange" min="25" max="120" value="60" oninput="applyZoom(this.value)" class="w-24 lg:w-28 accent-orange-500 cursor-pointer h-8">
+                    <span id="zoomVal" class="text-[10px] text-slate-300 font-mono w-10">60%</span>
+                </div>
+            </div>
+
+            <div id="versoWarning" class="w-full max-w-4xl mb-4 hidden no-print">
+                <div class="verso-empty-hint">
+                    ⚠️ Marque "HABILITAR VERSO" para visualizar a folha do verso.
+                </div>
+            </div>
+
+            <!-- ============ PRINT WRAPPER ============ -->
+            <div id="print-wrapper" class="py-2 w-full max-w-4xl">
+
+                <!-- INDIVIDUAL VIEW (Default) -->
+                <div id="singlePage" class="individual-view" style="display: block;">
+                    <div class="individual-label-wrapper">
+                        <p class="individual-label-title">📌 Frente da Etiqueta</p>
+                        <div class="individual-label-card" id="singleLabelWrapper">
+                            <div id="singleLabelContainer" style="width:100%; height:100%;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="individual-label-wrapper" id="singleVersoWrapper" style="display: none;">
+                        <p class="individual-label-title">📋 Verso da Etiqueta</p>
+                        <div class="individual-label-card" id="singleVersoCard">
+                            <div id="singleVersoContainer" style="width:100%; height:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- A4 Preview Mini -->
+                    <div class="w-full mt-4 no-print">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold text-center mb-2">📄 Pré-visualização na Folha A4</p>
+                        <div class="a4-preview-container">
+                            <div class="bg-slate-900 border border-slate-700 rounded-lg p-2 inline-block">
+                                <div class="a4-sheet" style="width: 120px; height: 170px; transform: none; box-shadow: none; border: 1px solid #334155;" id="a4MiniPreview">
+                                    <div class="labels-grid" id="a4MiniGrid"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FRENTE A4 -->
+                <div id="a4PageFront" class="a4-sheet" style="transform: scale(0.6); transform-origin: top center; display: none;">
+                    <div id="labelsContainer" class="labels-grid"></div>
+                </div>
+
+                <!-- VERSO A4 -->
+                <div id="a4PageVerso" class="a4-sheet" style="transform: scale(0.6); transform-origin: top center; display: none;">
+                    <div id="versoContainer" class="labels-grid"></div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const DEFAULT_ICONS = {
+            oil: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect x="80" y="160" width="352" height="280" rx="20" fill="%23FF6B00"/><rect x="160" y="80" width="192" height="100" rx="15" fill="%23D97706"/><circle cx="256" cy="300" r="70" fill="%23FFFFFF"/><path d="M256 240c-25 22-45 45-45 65 0 25 20 45 45 45s45-20 45-45c0-20-20-43-45-65z" fill="%23FF6B00"/></svg>`,
+            car: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23FF6B00" stroke-width="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H7c-.7 0-1.3.3-1.8.7C4.3 8.6 3 10 3 10s-2.7.6-4.5 1.1C.7 11.3 0 12.1 0 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
+            wrench: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23FF6B00" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+            drop: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF6B00"><path d="M12 2.5C8 8 5 12 5 15.5 5 19.6 8.1 22 12 22s7-2.4 7-6.5C19 12 16 8 12 2.5z"/></svg>`
+        };
+
+        let state = {
+            brandLogo: null, brandLogoName: '',
+            qrCenterIcon: DEFAULT_ICONS.oil, qrCenterIconKey: 'oil',
+            generatedQRDataURL: '', qrIsFresh: false,
+            currentViewMode: 'single', printMode: 'front',
+            library: []
+        };
+
+        const ALL_IDS = [
+            'bgColor','textColor','secondaryColor','cardStyle',
+            'headerText','headerPrefixColor','subTitleText','brandText','footerText','nextChangeText',
+            'headerSize','subSize','brandSize','footerSize','nextSize','contentPadding','contentGap',
+            'qrText','qrDarkColor','qrLightColor','iconSize','qrLabelSize',
+            'gridCols','gridRows','pageMargin','gridGap','labelRadius',
+            'versoTitle','versoFields','versoTextColor','versoBorderColor'
+        ];
+        const ALL_CHECKS = ['showQRFrame','printBorders','enableVerso','mirrorMode','mirrorVerso','mirrorQR','versoSameStyle'];
+
+        function saveState() {
+            try {
+                const cfg = {};
+                ALL_IDS.forEach(k => { const el = document.getElementById(k); if (el) cfg[k] = el.value; });
+                ALL_CHECKS.forEach(k => { const el = document.getElementById(k); if (el) cfg[k] = el.checked; });
+                cfg.brandLogo = state.brandLogo;
+                cfg.brandLogoName = state.brandLogoName;
+                cfg.qrCenterIcon = state.qrCenterIcon;
+                cfg.qrCenterIconKey = state.qrCenterIconKey;
+                cfg.generatedQRDataURL = state.generatedQRDataURL;
+                cfg.printMode = state.printMode;
+                cfg.currentViewMode = state.currentViewMode;
+                localStorage.setItem('etiquetaStudioConfig', JSON.stringify(cfg));
+            } catch(e) { console.warn('Save failed', e); }
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem('etiquetaStudioConfig');
+                if (!raw) return;
+                const cfg = JSON.parse(raw);
+                ALL_IDS.forEach(k => {
+                    const el = document.getElementById(k);
+                    if (el && cfg[k] !== undefined && cfg[k] !== null) el.value = cfg[k];
+                });
+                ALL_CHECKS.forEach(k => {
+                    const el = document.getElementById(k);
+                    if (el && cfg[k] !== undefined) el.checked = cfg[k];
+                });
+                state.brandLogo = cfg.brandLogo || null;
+                state.brandLogoName = cfg.brandLogoName || '';
+                if (cfg.qrCenterIcon) state.qrCenterIcon = cfg.qrCenterIcon;
+                if (cfg.qrCenterIconKey) state.qrCenterIconKey = cfg.qrCenterIconKey;
+                if (cfg.generatedQRDataURL) {
+                    state.generatedQRDataURL = cfg.generatedQRDataURL;
+                    state.qrIsFresh = true;
+                }
+                if (cfg.printMode) state.printMode = cfg.printMode;
+                if (cfg.currentViewMode) state.currentViewMode = cfg.currentViewMode;
+                if (state.qrCenterIconKey && state.qrCenterIconKey !== 'library') {
+                    const sel = document.getElementById('qrCenterIconSelect');
+                    if (sel) sel.value = state.qrCenterIconKey;
+                }
+            } catch(e) { console.warn('Load failed', e); }
+        }
+
+        function loadLibrary() {
+            try {
+                const raw = localStorage.getItem('etiquetaStudioLibrary');
+                state.library = raw ? JSON.parse(raw) : [];
+            } catch(e) { state.library = []; }
+            renderLibrary();
+        }
+
+        function saveLibrary() {
+            try { localStorage.setItem('etiquetaStudioLibrary', JSON.stringify(state.library)); }
+            catch(e) { alert('Biblioteca cheia.'); }
+            renderLibrary();
+        }
+
+        function renderLibrary() {
+            const grid = document.getElementById('libraryGrid');
+            const count = document.getElementById('libraryCount');
+            if (count) count.innerText = state.library.length;
+            if (grid) {
+                if (state.library.length === 0) {
+                    grid.innerHTML = `<p class="col-span-4 text-center text-[10px] text-slate-500 py-6 border border-dashed border-slate-800 rounded-lg">Nenhuma imagem ainda.</p>`;
+                } else {
+                    grid.innerHTML = state.library.map(item => `
+                        <div class="icon-lib-item" title="${item.name}" onclick="applyLibraryImage('${item.id}')">
+                            <img src="${item.data}" alt="${item.name}">
+                            <button class="del-btn" onclick="event.stopPropagation(); removeLibraryItem('${item.id}')">×</button>
+                        </div>
+                    `).join('');
+                }
+            }
+            const picker = document.getElementById('libraryIconPicker');
+            if (picker) {
+                if (state.library.length === 0) picker.innerHTML = `<p class="col-span-4 text-center text-[10px] text-slate-500 py-3">Biblioteca vazia</p>`;
+                else picker.innerHTML = state.library.map(item => `
+                    <div class="icon-lib-item" onclick="applyQRIconFromLibrary('${item.id}')" title="${item.name}">
+                        <img src="${item.data}" alt="${item.name}">
+                    </div>`).join('');
+            }
+        }
+
+        function handleLibraryUpload(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
+            let loaded = 0;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const item = { id: 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), name: file.name, data: e.target.result };
+                    state.library.push(item);
+                    if (!state.brandLogo && loaded === 0) {
+                        state.brandLogo = item.data;
+                        state.brandLogoName = item.name;
+                    }
+                    loaded++;
+                    if (loaded === files.length) {
+                        saveLibrary();
+                        updateAll();
+                        updateCurrentLogoPreview();
+                        event.target.value = '';
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function removeLibraryItem(id) { state.library = state.library.filter(i => i.id !== id); saveLibrary(); }
+        function clearLibrary() { if (!confirm('Limpar toda a biblioteca?')) return; state.library = []; saveLibrary(); }
+
+        function applyLibraryImage(id) {
+            const item = state.library.find(i => i.id === id);
+            if (!item) return;
+            state.brandLogo = item.data;
+            state.brandLogoName = item.name;
+            updateAll();
+            updateCurrentLogoPreview();
+            saveState();
+        }
+
+        function applyQRIconFromLibrary(id) {
+            const item = state.library.find(i => i.id === id);
+            if (!item) return;
+            state.qrCenterIcon = item.data;
+            state.qrCenterIconKey = 'library';
+            if (state.qrIsFresh) generateQRCode();
+            else markQRStale();
+        }
+
+        function updateCurrentLogoPreview() {
+            const preview = document.getElementById('currentLogoPreview');
+            if (!preview) return;
+            if (state.brandLogo) preview.innerHTML = `<img src="${state.brandLogo}" class="max-h-20 max-w-full object-contain">`;
+            else preview.innerHTML = `<p class="text-[10px] text-slate-500">Usando texto (sem imagem)</p>`;
+        }
+
+        function removeBrandLogo() { state.brandLogo = null; state.brandLogoName = ''; updateAll(); updateCurrentLogoPreview(); saveState(); }
+        function useTextLogo() { state.brandLogo = null; state.brandLogoName = ''; updateAll(); updateCurrentLogoPreview(); saveState(); }
+
+        function renderLogoGenerator() {
+            const canvas = document.getElementById('logoGenCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+            const text = document.getElementById('genLogoText').value || 'AB';
+            const shape = document.getElementById('genLogoShape').value;
+            const bg = document.getElementById('genLogoBg').value;
+            const fg = document.getElementById('genLogoFg').value;
+            const cx = W/2, cy = H/2, r = W * 0.42;
+            ctx.fillStyle = bg;
+            ctx.beginPath();
+            if (shape === 'circle') ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            else if (shape === 'square') { const s = r*1.7; ctx.rect(cx-s/2, cy-s/2, s, s); }
+            else if (shape === 'rounded') { const s = r*1.7, rad = s*0.22; if (ctx.roundRect) ctx.roundRect(cx-s/2, cy-s/2, s, s, rad); else ctx.rect(cx-s/2, cy-s/2, s, s); }
+            else if (shape === 'hexagon') {
+                const s = r * 1.05;
+                for (let i = 0; i < 6; i++) {
+                    const a = (Math.PI / 3) * i - Math.PI / 6;
+                    const x = cx + s * Math.cos(a), y = cy + s * Math.sin(a);
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+            }
+            ctx.fill();
+            ctx.fillStyle = fg;
+            ctx.font = `900 ${Math.floor(W * 0.38)}px Inter, Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text.toUpperCase(), cx, cy + W * 0.02);
+        }
+
+        function saveGeneratedLogo() {
+            const canvas = document.getElementById('logoGenCanvas');
+            const dataURL = canvas.toDataURL('image/png');
+            const name = 'Logo ' + (document.getElementById('genLogoText').value || 'AB');
+            state.library.push({ id: 'gen_' + Date.now(), name, data: dataURL });
+            saveLibrary();
+            state.brandLogo = dataURL;
+            state.brandLogoName = name;
+            updateAll();
+            updateCurrentLogoPreview();
+            saveState();
+        }
+
+        function switchTab(tabName) {
+            ['design','textos','icons','qrcode','verso','layout'].forEach(t => {
+                const content = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (!content || !btn) return;
+                if (t === tabName) {
+                    content.classList.remove('hidden');
+                    btn.classList.add('text-orange-500', 'border-orange-500');
+                    btn.classList.remove('text-slate-400', 'border-transparent');
+                } else {
+                    content.classList.add('hidden');
+                    btn.classList.remove('text-orange-500', 'border-orange-500');
+                    btn.classList.add('text-slate-400', 'border-transparent');
+                }
+            });
+        }
+
+        function toggleMobileSidebar() { document.getElementById('mainSidebar').classList.toggle('sidebar-mobile-hidden'); }
+        function updateSliderLabel(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
+
+        const TEMPLATES = {
+            classic: { bg:'#FF6B00', text:'#FFFFFF', secondary:'#1E293B', prefix:'#2563EB', cardStyle:'flat' },
+            dark:    { bg:'#111827', text:'#FFFFFF', secondary:'#F97316', prefix:'#F97316', cardStyle:'gradient' },
+            blue:    { bg:'#2563EB', text:'#FFFFFF', secondary:'#1E3A8A', prefix:'#FBBF24', cardStyle:'flat' },
+            green:   { bg:'#16A34A', text:'#FFFFFF', secondary:'#14532D', prefix:'#FDE047', cardStyle:'gradient' },
+            red:     { bg:'#DC2626', text:'#FFFFFF', secondary:'#7F1D1D', prefix:'#FCD34D', cardStyle:'bordered' },
+            purple:  { bg:'#7C3AED', text:'#FFFFFF', secondary:'#4C1D95', prefix:'#FBBF24', cardStyle:'gradient' }
+        };
+
+        function applyTemplate(name, ev) {
+            const t = TEMPLATES[name]; if (!t) return;
+            document.getElementById('bgColor').value = t.bg;
+            document.getElementById('textColor').value = t.text;
+            document.getElementById('secondaryColor').value = t.secondary;
+            document.getElementById('headerPrefixColor').value = t.prefix;
+            document.getElementById('cardStyle').value = t.cardStyle;
+            document.querySelectorAll('.template-card').forEach(el => el.classList.remove('active'));
+            if (ev && ev.currentTarget) ev.currentTarget.classList.add('active');
+            updateAll();
+        }
+
+        function markQRStale() { state.qrIsFresh = false; updateQRStatus(false); saveState(); }
+
+        function updateQRStatus(fresh) {
+            const el = document.getElementById('qrStatus');
+            const btn = document.getElementById('generateQRBtn');
+            if (!el || !btn) return;
+            if (fresh) {
+                el.className = 'qr-status ok';
+                el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> QR pronto`;
+                btn.classList.remove('qr-pulse');
+            } else {
+                el.className = 'qr-status warn';
+                el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Precisa gerar`;
+                btn.classList.add('qr-pulse');
+            }
+        }
+
+        function updateQRPreview() {
+            const container = document.getElementById('qrPreviewContainer');
+            if (!container) return;
+            if (state.generatedQRDataURL) container.innerHTML = `<img src="${state.generatedQRDataURL}" alt="QR Code" class="rounded-lg shadow-lg">`;
+            else container.innerHTML = `<p class="text-[10px] text-slate-500 text-center">Toque em "Gerar QR Code"</p>`;
+        }
+
+        function handleQRIconSelectChange() {
+            const val = document.getElementById('qrCenterIconSelect').value;
+            const libWrapper = document.getElementById('libraryIconPickerWrapper');
+            if (val === 'oil') { state.qrCenterIcon = DEFAULT_ICONS.oil; state.qrCenterIconKey = 'oil'; }
+            else if (val === 'car') { state.qrCenterIcon = DEFAULT_ICONS.car; state.qrCenterIconKey = 'car'; }
+            else if (val === 'wrench') { state.qrCenterIcon = DEFAULT_ICONS.wrench; state.qrCenterIconKey = 'wrench'; }
+            else if (val === 'drop') { state.qrCenterIcon = DEFAULT_ICONS.drop; state.qrCenterIconKey = 'drop'; }
+            else if (val === 'none') { state.qrCenterIcon = null; state.qrCenterIconKey = 'none'; }
+            if (val === 'library') { libWrapper.classList.remove('hidden'); renderLibrary(); return; }
+            else { libWrapper.classList.add('hidden'); if (state.qrIsFresh) generateQRCode(); else markQRStale(); }
+        }
+
+        function generateQRCode() {
+            const qrText = document.getElementById('qrText').value.trim() || 'https://exemplo.com';
+            const darkColor = document.getElementById('qrDarkColor').value;
+            const lightColor = document.getElementById('qrLightColor').value;
+            const iconSizePercent = parseInt(document.getElementById('iconSize').value) / 100;
+            const showFrame = document.getElementById('showQRFrame').checked;
+            const btn = document.getElementById('generateQRBtn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Gerando...`;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.style.cssText = 'position:fixed; left:-99999px; top:0; width:512px; height:512px;';
+            document.body.appendChild(tempDiv);
+
+            try {
+                new QRCode(tempDiv, { text: qrText, width: 512, height: 512, colorDark: darkColor, colorLight: lightColor, correctLevel: QRCode.CorrectLevel.H });
+            } catch(e) { document.body.removeChild(tempDiv); btn.innerHTML = originalHTML; alert('Erro: ' + e.message); return; }
+
+            setTimeout(() => {
+                const sourceEl = tempDiv.querySelector('canvas') || tempDiv.querySelector('img');
+                if (!sourceEl) { document.body.removeChild(tempDiv); btn.innerHTML = originalHTML; return; }
+                const canvas = document.createElement('canvas');
+                canvas.width = 512; canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+
+                const finishQR = (c) => {
+                    try { state.generatedQRDataURL = c.toDataURL('image/png'); state.qrIsFresh = true; }
+                    catch(err) { state.generatedQRDataURL = ''; state.qrIsFresh = false; }
+                    document.body.removeChild(tempDiv);
+                    btn.innerHTML = originalHTML;
+                    updateQRStatus(state.qrIsFresh);
+                    updateQRPreview();
+                    saveState();
+                    renderLabels();
+                };
+
+                const drawIconAndFinish = () => {
+                    if (!state.qrCenterIcon) { finishQR(canvas); return; }
+                    const iconImg = new Image();
+                    iconImg.crossOrigin = 'anonymous';
+                    iconImg.onload = () => {
+                        const iconSize = 512 * iconSizePercent;
+                        const x = (512 - iconSize) / 2, y = (512 - iconSize) / 2;
+                        if (showFrame) {
+                            ctx.fillStyle = lightColor;
+                            const pad = 12;
+                            ctx.beginPath();
+                            if (ctx.roundRect) ctx.roundRect(x - pad, y - pad, iconSize + pad*2, iconSize + pad*2, 18);
+                            else ctx.rect(x - pad, y - pad, iconSize + pad*2, iconSize + pad*2);
+                            ctx.fill();
+                        }
+                        ctx.drawImage(iconImg, x, y, iconSize, iconSize);
+                        finishQR(canvas);
+                    };
+                    iconImg.onerror = () => finishQR(canvas);
+                    iconImg.src = state.qrCenterIcon;
+                };
+
+                const drawBase = () => {
+                    if (sourceEl.tagName === 'CANVAS') { ctx.drawImage(sourceEl, 0, 0, 512, 512); drawIconAndFinish(); }
+                    else {
+                        const baseImg = new Image();
+                        baseImg.crossOrigin = 'anonymous';
+                        baseImg.onload = () => { ctx.drawImage(baseImg, 0, 0, 512, 512); drawIconAndFinish(); };
+                        baseImg.onerror = () => { document.body.removeChild(tempDiv); btn.innerHTML = originalHTML; };
+                        baseImg.src = sourceEl.src;
+                    }
+                };
+                drawBase();
+            }, 200);
+        }
+
+        function createSingleLabelHTML() {
+            const bgColor = document.getElementById('bgColor').value;
+            const textColor = document.getElementById('textColor').value;
+            const secondaryColor = document.getElementById('secondaryColor').value;
+            const cardStyle = document.getElementById('cardStyle').value;
+            const headerText = document.getElementById('headerText').value;
+            const headerPrefixColor = document.getElementById('headerPrefixColor').value;
+            const subTitleText = document.getElementById('subTitleText').value;
+            const brandText = document.getElementById('brandText').value;
+            const footerText = document.getElementById('footerText').value;
+            const nextChangeText = document.getElementById('nextChangeText').value;
+            const labelRadius = document.getElementById('labelRadius').value;
+            const printBorders = document.getElementById('printBorders').checked;
+            const mirrorMode = document.getElementById('mirrorMode').checked;
+            const mirrorQR = document.getElementById('mirrorQR').checked;
+            const headerSize = document.getElementById('headerSize').value + 'px';
+            const subSize = document.getElementById('subSize').value + 'px';
+            const brandSize = document.getElementById('brandSize').value + 'px';
+            const footerSize = document.getElementById('footerSize').value + 'px';
+            const nextSize = document.getElementById('nextSize').value + 'px';
+            const contentPadding = document.getElementById('contentPadding').value + '%';
+            const contentGap = document.getElementById('contentGap').value + 'px';
+            const qrLabelSize = document.getElementById('qrLabelSize').value + '%';
+
+            let headerFormatted = headerText;
+            if (headerText.length > 0) headerFormatted = `<span style="color:${headerPrefixColor}">${headerText.charAt(0)}</span>${headerText.slice(1)}`;
+
+            let cardExtraStyle = '';
+            if (cardStyle === 'gradient') cardExtraStyle = `background: linear-gradient(135deg, ${bgColor} 0%, ${secondaryColor} 100%);`;
+            else if (cardStyle === 'striped') cardExtraStyle = `background: repeating-linear-gradient(45deg, ${bgColor}, ${bgColor} 10px, ${secondaryColor} 10px, ${secondaryColor} 20px);`;
+            else if (cardStyle === 'bordered') cardExtraStyle = `background-color: ${bgColor}; border: 3px double ${secondaryColor};`;
+            else cardExtraStyle = `background-color: ${bgColor};`;
+
+            let brandHTML = '';
+            if (state.brandLogo) {
+                brandHTML = `<div class="flex items-center justify-center" style="max-height:${parseInt(brandSize)*2.4}px"><img src="${state.brandLogo}" style="max-height:${parseInt(brandSize)*2.2}px; max-width:90%; object-fit:contain;" alt="Logo"></div>`;
+            } else if (brandText) {
+                brandHTML = `<div class="flex items-center justify-center gap-1">
+                    <div class="rounded-full bg-white flex items-center justify-center font-black" style="width:${parseInt(brandSize)*0.9}px; height:${parseInt(brandSize)*0.9}px; font-size:${parseInt(brandSize)*0.55}px; color:${bgColor}">a</div>
+                    <span class="font-black tracking-tight" style="color:${textColor}; font-size:${brandSize}">${brandText}</span>
+                </div>`;
+            }
+
+            let nextChangeHTML = nextChangeText ? `<div class="rounded font-black" style="background:${textColor}22; color:${textColor}; font-size:${nextSize}; padding:1px 6px;">Próx.: ${nextChangeText}</div>` : '';
+            const borderStyle = printBorders ? `outline: 1px dashed #94a3b8; outline-offset: -1px;` : '';
+
+            let qrHTML;
+            if (state.generatedQRDataURL) {
+                const qrClass = mirrorQR ? 'mirror-qr' : '';
+                qrHTML = `<img src="${state.generatedQRDataURL}" class="w-full h-full object-contain ${qrClass}">`;
+            } else {
+                qrHTML = `<div class="text-slate-400 flex flex-col items-center justify-center w-full h-full text-center leading-tight p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#94a3b8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3z"/></svg>
+                    <span style="font-size:7px; margin-top:4px;">Gere o QR</span>
+                </div>`;
+            }
+
+            const mirrorClass = mirrorMode ? 'mirror-label' : '';
+
+            return `
+                <div class="label-card-content ${mirrorClass}" style="${cardExtraStyle} color:${textColor}; border-radius:${labelRadius}px; padding:${contentPadding}; gap:${contentGap}; ${borderStyle}">
+                    ${headerFormatted ? `<div style="width:100%"><h2 class="font-black tracking-tight leading-none uppercase drop-shadow-sm" style="color:${textColor}; font-size:${headerSize}">${headerFormatted}</h2></div>` : '<div></div>'}
+                    <div class="bg-white rounded-xl shadow-lg flex items-center justify-center" style="max-width:${qrLabelSize}; width:${qrLabelSize}; aspect-ratio:1; padding:4px;">${qrHTML}</div>
+                    <div style="width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:${Math.max(1, parseInt(contentGap)/2)}px;">
+                        ${subTitleText ? `<span class="font-semibold leading-none opacity-90 uppercase tracking-wider" style="font-size:${subSize}">${subTitleText}</span>` : ''}
+                        ${brandHTML}
+                        ${footerText ? `<p class="font-bold opacity-90 leading-tight" style="font-size:${footerSize}; margin-top:2px;">${footerText}</p>` : ''}
+                        ${nextChangeHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createVersoHTML() {
+            const title = document.getElementById('versoTitle').value;
+            const fieldsText = document.getElementById('versoFields').value;
+            const textColor = document.getElementById('versoTextColor').value;
+            const borderColor = document.getElementById('versoBorderColor').value;
+            const bgColor = document.getElementById('bgColor').value;
+            const mirrorVerso = document.getElementById('mirrorVerso').checked;
+            const versoSameStyle = document.getElementById('versoSameStyle').checked;
+            const labelRadius = document.getElementById('labelRadius').value;
+            const printBorders = document.getElementById('printBorders').checked;
+            const contentPadding = document.getElementById('contentPadding').value;
+
+            const radius = versoSameStyle ? labelRadius : '12';
+            const borderStyle = printBorders ? `outline: 1px dashed #94a3b8; outline-offset: -1px;` : '';
+            const fields = fieldsText.split('\n').filter(f => f.trim() !== '');
+
+            const fieldsHTML = fields.map(field => `
+                <div class="flex items-end gap-1" style="min-height:14px">
+                    <span style="font-size:7px; font-weight:bold; white-space:nowrap; color:${textColor}">${field}</span>
+                    <div style="flex:1; border-bottom:1px dashed ${borderColor}; height:8px"></div>
+                </div>
+            `).join('');
+
+            const mirrorClass = mirrorVerso ? 'mirror-label' : '';
+
+            return `
+                <div class="w-full h-full flex flex-col ${mirrorClass}"
+                     style="background:#ffffff; color:${textColor}; border-radius:${radius}px; padding:${contentPadding}%; box-sizing:border-box; ${borderStyle}">
+                    ${title ? `<div style="text-align:center; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid ${bgColor}">
+                        <h3 style="font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; color:${textColor}">${title}</h3>
+                    </div>` : ''}
+                    <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-start; gap:4px; overflow:hidden;">
+                        ${fieldsHTML || `<p style="font-size:8px; color:#94a3b8; text-align:center; padding:16px 0;">Adicione campos na aba Verso</p>`}
+                    </div>
+                    <div style="text-align:center; margin-top:4px; padding-top:4px; border-top:1px solid ${borderColor}">
+                        <p style="font-size:6px; font-weight:bold; opacity:0.7; color:${textColor}">Obrigado pela preferência!</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateLayoutGrid() {
+            const cols = parseInt(document.getElementById('gridCols').value) || 5;
+            const rows = parseInt(document.getElementById('gridRows').value) || 5;
+            const margin = parseInt(document.getElementById('pageMargin').value) || 10;
+            const gap = parseInt(document.getElementById('gridGap').value) || 4;
+
+            const front = document.getElementById('a4PageFront');
+            const verso = document.getElementById('a4PageVerso');
+            const labelsC = document.getElementById('labelsContainer');
+            const versoC = document.getElementById('versoContainer');
+
+            front.style.padding = `${margin}mm`;
+            verso.style.padding = `${margin}mm`;
+
+            [labelsC, versoC].forEach(c => {
+                c.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+                c.style.gridAutoRows = `1fr`;
+                c.style.gap = `${gap}mm`;
+            });
+
+            const availWidth = 210 - (margin * 2) - (gap * (cols - 1));
+            const availHeight = 297 - (margin * 2) - (gap * (rows - 1));
+            document.getElementById('totalLabelsCount').innerText = `${cols * rows} un`;
+            document.getElementById('labelDimensions').innerText = `${(availWidth/cols).toFixed(1)} x ${(availHeight/rows).toFixed(1)} mm`;
+
+            // Update mini A4 preview
+            updateMiniPreview(cols, rows, gap, margin);
+
+            renderLabels();
+        }
+
+        function updateMiniPreview(cols, rows, gap, margin) {
+            const miniGrid = document.getElementById('a4MiniGrid');
+            if (!miniGrid) return;
+            
+            const miniW = 120;
+            const miniH = 170;
+            const scaleX = miniW / 210;
+            const scaleY = miniH / 297;
+            
+            miniGrid.style.padding = `${margin * scaleY}px`;
+            miniGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            miniGrid.style.gridAutoRows = `1fr`;
+            miniGrid.style.gap = `${gap * scaleX}px`;
+            miniGrid.style.width = `${miniW}px`;
+            miniGrid.style.height = `${miniH}px`;
+            
+            const total = cols * rows;
+            let html = '';
+            for (let i = 0; i < total; i++) {
+                html += `<div style="background: #FF6B00; border-radius: 2px; min-width: 4px; min-height: 4px;"></div>`;
+            }
+            miniGrid.innerHTML = html;
+        }
+
+        function renderLabels() {
+            const cols = parseInt(document.getElementById('gridCols').value) || 5;
+            const rows = parseInt(document.getElementById('gridRows').value) || 5;
+            const total = cols * rows;
+
+            const labelsC = document.getElementById('labelsContainer');
+            const versoC = document.getElementById('versoContainer');
+            const singleF = document.getElementById('singleLabelContainer');
+            const singleV = document.getElementById('singleVersoContainer');
+
+            const labelMarkup = createSingleLabelHTML();
+            const versoMarkup = createVersoHTML();
+
+            let gridHTML = '', versoGridHTML = '';
+            for (let i = 0; i < total; i++) {
+                gridHTML += `<div class="label-cell">${labelMarkup}</div>`;
+                versoGridHTML += `<div class="label-cell">${versoMarkup}</div>`;
+            }
+            labelsC.innerHTML = gridHTML;
+            versoC.innerHTML = versoGridHTML;
+            singleF.innerHTML = labelMarkup;
+            singleV.innerHTML = versoMarkup;
+        }
+
+        function setViewMode(mode) {
+            state.currentViewMode = mode;
+            const frontPage = document.getElementById('a4PageFront');
+            const versoPage = document.getElementById('a4PageVerso');
+            const singlePage = document.getElementById('singlePage');
+            const btnSheet = document.getElementById('btn-view-sheet');
+            const btnVerso = document.getElementById('btn-view-verso');
+            const btnBoth = document.getElementById('btn-view-both');
+            const btnSingle = document.getElementById('btn-view-single');
+
+            const activeCls = "flex-1 min-w-[70px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-white bg-orange-600 transition flex items-center justify-center gap-1.5 whitespace-nowrap";
+            const inactiveCls = "flex-1 min-w-[60px] px-2 lg:px-3 py-2 rounded-lg text-[10px] lg:text-[11px] font-bold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 whitespace-nowrap";
+
+            const enableVerso = document.getElementById('enableVerso').checked;
+
+            frontPage.style.display = 'none';
+            versoPage.style.display = 'none';
+            singlePage.style.display = 'none';
+
+            btnSheet.className = inactiveCls;
+            btnVerso.className = inactiveCls;
+            btnBoth.className = inactiveCls;
+            btnSingle.className = inactiveCls;
+
+            if (mode === 'single') {
+                singlePage.style.display = 'block';
+                btnSingle.className = activeCls;
+                document.getElementById('singleLabelWrapper').style.display = 'block';
+                document.getElementById('singleVersoWrapper').style.display = enableVerso ? 'block' : 'none';
+            } else if (mode === 'sheet') {
+                frontPage.style.display = 'block';
+                btnSheet.className = activeCls;
+            } else if (mode === 'verso') {
+                if (enableVerso) versoPage.style.display = 'block';
+                btnVerso.className = activeCls;
+            } else if (mode === 'both') {
+                frontPage.style.display = 'block';
+                if (enableVerso) versoPage.style.display = 'block';
+                btnBoth.className = activeCls;
+            }
+
+            applyZoom(document.getElementById('zoomRange').value);
+            updateVersoWarning();
+            renderLabels();
+            saveState();
+        }
+
+        function setPrintMode(mode) {
+            state.printMode = mode;
+            ['front','verso','both'].forEach(m => {
+                const el = document.getElementById('printMode' + m.charAt(0).toUpperCase() + m.slice(1));
+                if (el) el.classList.toggle('active', m === mode);
+            });
+            saveState();
+        }
+
+        function applyZoom(val) {
+            document.getElementById('zoomVal').innerText = val + '%';
+            const scale = val / 100;
+            const frontPage = document.getElementById('a4PageFront');
+            const versoPage = document.getElementById('a4PageVerso');
+            const singlePage = document.getElementById('singlePage');
+
+            if (frontPage) frontPage.style.transform = `scale(${scale})`;
+            if (versoPage) versoPage.style.transform = `scale(${scale})`;
+            if (singlePage) singlePage.style.transform = `scale(${scale})`;
+        }
+
+        function updateVersoVisibility() {
+            const enabled = document.getElementById('enableVerso').checked;
+            if (!enabled && state.printMode === 'verso') setPrintMode('front');
+            saveState();
+            setViewMode(state.currentViewMode);
+        }
+
+        function updateVersoWarning() {
+            const warn = document.getElementById('versoWarning');
+            if (!warn) return;
+            const enabled = document.getElementById('enableVerso').checked;
+            if ((state.currentViewMode === 'verso' || state.currentViewMode === 'both') && !enabled) {
+                warn.classList.remove('hidden');
+            } else {
+                warn.classList.add('hidden');
+            }
+        }
+
+        function saveAndUpdate() {
+            saveState();
+            updateLayoutGrid();
+            updateVersoWarning();
+        }
+
+        function updateAll() {
+            document.getElementById('bgColorHex').innerText = document.getElementById('bgColor').value;
+            document.getElementById('textColorHex').innerText = document.getElementById('textColor').value;
+            saveState();
+            renderLabels();
+        }
+
+        async function exportSheetPNG() {
+            let page;
+            if (state.currentViewMode === 'verso' && document.getElementById('enableVerso').checked) {
+                page = document.getElementById('a4PageVerso');
+            } else if (state.currentViewMode === 'single') {
+                page = document.getElementById('singleLabelWrapper');
+            } else {
+                page = document.getElementById('a4PageFront');
+            }
+            
+            const oldTransform = page.style.transform;
+            const oldDisplay = page.style.display;
+            page.style.transform = 'none';
+            page.style.display = 'block';
+            
+            const canvas = await html2canvas(page, { scale: 2, backgroundColor: '#ffffff' });
+            
+            page.style.transform = oldTransform;
+            page.style.display = oldDisplay;
+            
+            const link = document.createElement('a');
+            link.download = 'etiquetas-' + Date.now() + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        async function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const front = document.getElementById('a4PageFront');
+            const verso = document.getElementById('a4PageVerso');
+            const enableVerso = document.getElementById('enableVerso').checked;
+
+            const addPage = async (page) => {
+                const oldT = page.style.transform;
+                const oldD = page.style.display;
+                page.style.transform = 'none';
+                page.style.display = 'block';
+                const c = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                page.style.transform = oldT;
+                page.style.display = oldD;
+                return c.toDataURL('image/jpeg', 0.95);
+            };
+
+            const mode = state.printMode;
+            if (mode === 'front' || (mode === 'both' && enableVerso)) {
+                pdf.addImage(await addPage(front), 'JPEG', 0, 0, 210, 297);
+            }
+            if ((mode === 'verso' || mode === 'both') && enableVerso) {
+                if (mode === 'both') pdf.addPage();
+                pdf.addImage(await addPage(verso), 'JPEG', 0, 0, 210, 297);
+            }
+            pdf.save('etiquetas-troca-oleo.pdf');
+        }
+
+        function printAll() {
+            const frontEl = document.getElementById('a4PageFront');
+            const versoEl = document.getElementById('a4PageVerso');
+            const singleEl = document.getElementById('singlePage');
+            const enableVerso = document.getElementById('enableVerso').checked;
+
+            const prevFrontD = frontEl.style.display;
+            const prevVersoD = versoEl.style.display;
+            const prevSingleD = singleEl.style.display;
+            const prevFrontT = frontEl.style.transform;
+            const prevVersoT = versoEl.style.transform;
+
+            document.body.classList.remove('print-mode-front', 'print-mode-verso', 'print-mode-both');
+            document.body.classList.add('print-mode-' + state.printMode);
+
+            singleEl.style.display = 'none';
+
+            if (state.printMode === 'front') {
+                frontEl.style.display = 'block';
+                versoEl.style.display = 'none';
+            } else if (state.printMode === 'verso' && enableVerso) {
+                frontEl.style.display = 'none';
+                versoEl.style.display = 'block';
+            } else if (state.printMode === 'both' && enableVerso) {
+                frontEl.style.display = 'block';
+                versoEl.style.display = 'block';
+            }
+
+            frontEl.style.transform = 'none';
+            versoEl.style.transform = 'none';
+
+            window.print();
+
+            setTimeout(() => {
+                frontEl.style.transform = prevFrontT;
+                versoEl.style.transform = prevVersoT;
+                frontEl.style.display = prevFrontD;
+                versoEl.style.display = prevVersoD;
+                singleEl.style.display = prevSingleD;
+                document.body.classList.remove('print-mode-front', 'print-mode-verso', 'print-mode-both');
+                setViewMode(state.currentViewMode);
+            }, 800);
+        }
+
+        function exportSVG() {
+            const cfg = {
+                bgColor: document.getElementById('bgColor').value,
+                textColor: document.getElementById('textColor').value,
+                secondaryColor: document.getElementById('secondaryColor').value,
+                cardStyle: document.getElementById('cardStyle').value,
+                headerText: document.getElementById('headerText').value,
+                headerPrefixColor: document.getElementById('headerPrefixColor').value,
+                subTitleText: document.getElementById('subTitleText').value,
+                brandText: document.getElementById('brandText').value,
+                footerText: document.getElementById('footerText').value,
+                nextChangeText: document.getElementById('nextChangeText').value,
+                labelRadius: parseInt(document.getElementById('labelRadius').value) || 12,
+                headerSize: parseInt(document.getElementById('headerSize').value) || 14,
+                subSize: parseInt(document.getElementById('subSize').value) || 8,
+                brandSize: parseInt(document.getElementById('brandSize').value) || 10,
+                footerSize: parseInt(document.getElementById('footerSize').value) || 7,
+                nextSize: parseFloat(document.getElementById('nextSize').value) || 7.5,
+                contentPadding: parseInt(document.getElementById('contentPadding').value) || 8,
+                qrLabelSize: parseInt(document.getElementById('qrLabelSize').value) || 82,
+                printBorders: document.getElementById('printBorders').checked,
+                mirrorMode: document.getElementById('mirrorMode').checked,
+                qrDataURL: state.generatedQRDataURL,
+                brandLogo: state.brandLogo
+            };
+
+            const W = 75, H = 105;
+            const pad = W * (cfg.contentPadding / 100);
+            const safeURL = (u) => u.replace(/#/g, '%23').replace(/"/g, '&quot;');
+
+            const qrW = W * cfg.qrLabelSize / 100;
+            const qrX = (W - qrW) / 2;
+            const qrY = H * 0.33;
+
+            let qrSVG = '';
+            if (cfg.qrDataURL) {
+                qrSVG = `<rect x="${qrX - 1.5}" y="${qrY - 1.5}" width="${qrW + 3}" height="${qrW + 3}" fill="#ffffff" rx="4"/>
+                   <image x="${qrX}" y="${qrY}" width="${qrW}" height="${qrW}" preserveAspectRatio="xMidYMid meet"
+                          xlink:href="${safeURL(cfg.qrDataURL)}" href="${safeURL(cfg.qrDataURL)}"/>`;
+            } else {
+                qrSVG = `<rect x="${qrX}" y="${qrY}" width="${qrW}" height="${qrW}" fill="#f1f5f9" rx="4"/>
+                   <text x="${W/2}" y="${qrY + qrW/2}" text-anchor="middle" font-size="3.5" fill="#94a3b8" font-family="Inter,Arial,sans-serif">Gere o QR</text>`;
+            }
+
+            const headerSVG = cfg.headerText 
+                ? `<text x="${W/2}" y="${pad + cfg.headerSize * 0.9}" text-anchor="middle" font-size="${cfg.headerSize}" font-weight="900" fill="${cfg.textColor}" font-family="Inter,Arial,sans-serif">${esc(cfg.headerText.toUpperCase())}</text>` : '';
+
+            const subTitleSVG = cfg.subTitleText 
+                ? `<text x="${W/2}" y="${H - pad - 34}" text-anchor="middle" font-size="${cfg.subSize}" font-weight="600" fill="${cfg.textColor}" opacity="0.9" font-family="Inter,Arial,sans-serif">${esc(cfg.subTitleText.toUpperCase())}</text>` : '';
+
+            let brandSVG = '';
+            if (cfg.brandLogo) {
+                const imgH = Math.min(cfg.brandSize * 2.2, 14);
+                const imgW = imgH * 2.5;
+                brandSVG = `<image x="${(W - imgW) / 2}" y="${H - pad - 26}" width="${imgW}" height="${imgH}"
+                    preserveAspectRatio="xMidYMid meet" xlink:href="${safeURL(cfg.brandLogo)}" href="${safeURL(cfg.brandLogo)}"/>`;
+            } else if (cfg.brandText) {
+                const fs = cfg.brandSize;
+                const textY = H - pad - 14;
+                brandSVG = `
+                    <circle cx="${W/2 - cfg.brandText.length * fs * 0.15 - 1}" cy="${textY - fs * 0.35}" r="${fs * 0.5}" fill="#ffffff"/>
+                    <text x="${W/2 - cfg.brandText.length * fs * 0.15 - 1}" y="${textY - fs * 0.35 + fs * 0.18}" text-anchor="middle" font-size="${fs * 0.6}" font-weight="900" fill="${cfg.bgColor}" font-family="Inter,Arial,sans-serif">a</text>
+                    <text x="${W/2 + fs * 0.7}" y="${textY}" text-anchor="middle" font-size="${fs}" font-weight="900" fill="${cfg.textColor}" font-family="Inter,Arial,sans-serif">${esc(cfg.brandText)}</text>`;
+            }
+
+            const footerSVG = cfg.footerText 
+                ? `<text x="${W/2}" y="${H - pad - 4}" text-anchor="middle" font-size="${cfg.footerSize}" font-weight="700" fill="${cfg.textColor}" opacity="0.9" font-family="Inter,Arial,sans-serif">${esc(cfg.footerText)}</text>` : '';
+
+            const nextSVG = cfg.nextChangeText 
+                ? `<text x="${W/2}" y="${H - pad + 5}" text-anchor="middle" font-size="${cfg.nextSize}" font-weight="900" fill="${cfg.textColor}" font-family="Inter,Arial,sans-serif">Próx.: ${esc(cfg.nextChangeText)}</text>` : '';
+
+            let defs = '', fillDef = `fill="${cfg.bgColor}"`;
+            if (cfg.cardStyle === 'gradient') {
+                defs = `<defs><linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${cfg.bgColor}"/><stop offset="100%" stop-color="${cfg.secondaryColor}"/></linearGradient></defs>`;
+                fillDef = `fill="url(#bgGrad)"`;
+            } else if (cfg.cardStyle === 'striped') {
+                defs = `<defs><pattern id="stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="${cfg.bgColor}"/><rect x="3" width="3" height="6" fill="${cfg.secondaryColor}"/></pattern></defs>`;
+                fillDef = `fill="url(#stripe)"`;
+            }
+
+            const borderSVG = cfg.printBorders ? `<rect x="0.5" y="0.5" width="${W-1}" height="${H-1}" fill="none" stroke="#94a3b8" stroke-dasharray="2,2" stroke-width="0.4"/>` : '';
+            const strokeSVG = cfg.cardStyle === 'bordered' ? `<rect x="1.5" y="1.5" width="${W-3}" height="${H-3}" fill="none" stroke="${cfg.secondaryColor}" stroke-width="1.5"/>` : '';
+            const mirrorTransform = cfg.mirrorMode ? `transform="translate(${W},0) scale(-1,1)"` : '';
+            const radiusSVG = Math.min(cfg.labelRadius * 0.26, 8);
+
+            const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">
+    ${defs}
+    <rect width="${W}" height="${H}" rx="${radiusSVG}" ${fillDef} stroke="none"/>
+    <g ${mirrorTransform}>
+        ${headerSVG}
+        ${qrSVG}
+        ${subTitleSVG}
+        ${brandSVG}
+        ${footerSVG}
+        ${nextSVG}
+    </g>
+    ${strokeSVG}
+    ${borderSVG}
+</svg>`;
+
+            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = 'etiqueta-vetorizada-' + Date.now() + '.svg';
+            link.href = url;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        }
+
+        function esc(s) {
+            return String(s).replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;' }[c]));
+        }
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadState();
+            loadLibrary();
+            renderLogoGenerator();
+            updateCurrentLogoPreview();
+
+            if (state.qrCenterIconKey) {
+                const sel = document.getElementById('qrCenterIconSelect');
+                if (sel && state.qrCenterIconKey !== 'library') sel.value = state.qrCenterIconKey;
+            }
+
+            const labelPairs = [
+                ['iconSizeVal', 'iconSize', '%'], ['qrLabelSizeVal', 'qrLabelSize', '%'],
+                ['marginVal', 'pageMargin', ' mm'], ['gapVal', 'gridGap', ' mm'],
+                ['radiusVal', 'labelRadius', ' px'], ['headerSizeVal', 'headerSize', 'px'],
+                ['subSizeVal', 'subSize', 'px'], ['brandSizeVal', 'brandSize', 'px'],
+                ['footerSizeVal', 'footerSize', 'px'], ['nextSizeVal', 'nextSize', 'px'],
+                ['contentPaddingVal', 'contentPadding', '%'], ['contentGapVal', 'contentGap', 'px']
+            ];
+            labelPairs.forEach(([labelId, inputId, unit]) => {
+                const input = document.getElementById(inputId);
+                if (input) updateSliderLabel(labelId, input.value + unit);
+            });
+
+            updateQRStatus(state.qrIsFresh);
+            updateQRPreview();
+            setPrintMode(state.printMode);
+            updateLayoutGrid();
+            setViewMode(state.currentViewMode || 'single');
+
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                if (!el.dataset.noAutoSave) el.addEventListener('change', saveState);
+            });
+
+            // Add spin keyframe
+            if (!document.getElementById('spin-keyframe')) {
+                const s = document.createElement('style');
+                s.id = 'spin-keyframe';
+                s.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+                document.head.appendChild(s);
+            }
+
+            // Close mobile sidebar when clicking outside
+            document.addEventListener('click', function(e) {
+                const sidebar = document.getElementById('mainSidebar');
+                const toggleBtn = document.querySelector('.mobile-toggle-btn');
+                if (window.innerWidth < 1024 && !sidebar.classList.contains('sidebar-mobile-hidden')) {
+                    if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                        sidebar.classList.add('sidebar-mobile-hidden');
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>
